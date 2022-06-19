@@ -1,9 +1,12 @@
 # E-Commerce Microservices
-This is Demo Microservices using Golang as base languages.
+This project is a simple skeleton code for microservice architecture pattern using Golang and RabbitMQ.
 
-## Prerequisites
-* Docker
-* Docker Compose
+## Diagram
+![Microservices](./microservice-diagram.png?raw=true "Microservices Diagram")
+
+## Requirements
+* [Docker](https://docs.docker.com/get-docker/)
+* [Docker Compose](https://docs.docker.com/compose/install/)
 
 ## Installation
 1. Clone this git repoistory.
@@ -51,7 +54,7 @@ Method       : POST
 Content-Type : application/json
 Body         :
 {
-	"name"    : "Adam Smith"
+    "name"    : "Adam Smith"
     "email"   : "adam.smith@gmail.com",
     "password": "adamsecret"
 }
