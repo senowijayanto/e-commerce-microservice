@@ -178,7 +178,7 @@ func Login(response http.ResponseWriter, request *http.Request) {
 }
 
 func main() {
-	log.Println("Auth-Service is Running!")
+	log.Println("Auth-Service is running!")
 
 	router := mux.NewRouter()
 
