@@ -182,8 +182,8 @@ func main() {
 
 	router := mux.NewRouter()
 
-	router.HandleFunc("/api/auth/register", Register).Methods("POST")
-	router.HandleFunc("/api/auth/login", Login).Methods("POST")
+	router.HandleFunc("/auth/register", Register).Methods("POST")
+	router.HandleFunc("/auth/login", Login).Methods("POST")
 
 	log.Fatal(http.ListenAndServe("localhost:8081", router))
 }
