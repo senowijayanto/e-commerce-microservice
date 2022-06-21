@@ -19,21 +19,9 @@ type Product struct {
 	Price       int32              `json:"price,omitempty" bson:"price,omitempty"`
 }
 
-type ProductPayload struct {
-	Id          string `json:"_id,omitempty" bson:"_id,omitempty"`
-	Name        string `json:"name,omitempty" bson:"name,omitempty"`
-	Description string `json:"description,omitempty" bson:"description,omitempty"`
-	Price       int32  `json:"price,omitempty" bson:"price,omitempty"`
+type ProductIDs struct {
+	Ids []primitive.ObjectID `json:"ids"`
 }
-
-var (
-	SECRET_KEY                 = []byte("secretkey")
-	MONGO_URI                  = "mongodb://admin:secret@localhost:27019"
-	MONGO_DATABASE             = "productDB"
-	MONGO_POOL_MIN             = 10
-	MONGO_POOL_MAX             = 100
-	MONGO_MAX_IDLE_TIME_SECOND = 60
-)
 
 func Create(response http.ResponseWriter, request *http.Request) {
 	ctx, cancel := config.NewMongoContext()
@@ -54,33 +42,42 @@ func Create(response http.ResponseWriter, request *http.Request) {
 }
 
 func Buy(response http.ResponseWriter, request *http.Request) {
-	ctx, cancel := config.NewMongoContext()
-	defer cancel()
+	conn, err := config.GetConn()
+	config.FailOnError(err, "Failed to connect RabbitMQ!")
 
-	// Get product from body request
-	var product Product
-	var dbProduct Product
-	_ = json.NewDecoder(request.Body).Decode(&product)
+	// Get product IDs from body request
+	var ids ProductIDs
+	_ = json.NewDecoder(request.Body).Decode(&ids)
 
-	// Find product by id
-	collection := config.NewMongoDatabase().Collection("product")
-	collection.FindOne(ctx, bson.M{"_id": product.Id}).Decode(&dbProduct)
+	var arrIds = ids.Ids
 
-	bodyProduct := ProductPayload{
-		Id:          primitive.ObjectID(dbProduct.Id).Hex(),
-		Name:        dbProduct.Name,
-		Description: dbProduct.Description,
-		Price:       dbProduct.Price,
-	}
-	payload, err := json.Marshal(bodyProduct)
+	// Find product by ids
+	products, err := GetProductsInValues("_id", arrIds)
+	config.FailOnError(err, "Failed get products!")
+
+	payload, err := json.Marshal(products)
 	config.FailOnError(err, "Failed to connect to convert JSON")
 
 	// Publish Queue
-	config.PublishQueue(payload, "ORDER")
+	conn.PublishQueue(payload, "ORDER")
+}
 
-	// return to json
-	config.ConsumeQueue("PRODUCT")
+func GetProductsInValues(key string, values []primitive.ObjectID) (products []Product, err error) {
+	ctx, cancel := config.NewMongoContext()
+	defer cancel()
 
+	collection := config.NewMongoDatabase().Collection("product")
+
+	filter := bson.M{key: bson.M{"$in": values}}
+	cursor, err := collection.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	err = cursor.All(ctx, &products)
+	if err != nil {
+		return nil, err
+	}
+	return
 }
 
 func main() {

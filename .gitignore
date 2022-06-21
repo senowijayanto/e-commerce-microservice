@@ -1,3 +1,4 @@
 rabbitmq/*
 auth-service/data/*
 product-service/data/*
+order-service/data/*

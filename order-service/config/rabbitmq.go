@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"log"
 
 	"github.com/streadway/amqp"
@@ -33,8 +34,9 @@ func GetConn() (Conn, error) {
 	}, err
 }
 
-func (conn Conn) PublishQueue(payload []byte, queueName string) {
+func (conn Conn) ConsumeQueue(queueName string) {
 	ch := conn.Channel
+
 	q, err := ch.QueueDeclare(
 		queueName,
 		false,
@@ -45,17 +47,50 @@ func (conn Conn) PublishQueue(payload []byte, queueName string) {
 	)
 	FailOnError(err, "Failed to declare a queue")
 
-	body := string(payload)
-	err = ch.Publish(
-		"",
+	msgs, err := ch.Consume(
 		q.Name,
+		"",
+		true,
 		false,
 		false,
-		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        []byte(body),
-		},
+		false,
+		nil,
 	)
-	log.Printf(" [x] Sent %s", body)
-	FailOnError(err, "Failed to publish a message")
+	FailOnError(err, "Failed to register a consumer")
+
+	forever := make(chan bool)
+	var products []Product
+
+	go func() {
+		for d := range msgs {
+			err := json.Unmarshal(d.Body, &products)
+			FailOnError(err, "Error Unmarshal")
+			createOrder(products)
+		}
+	}()
+
+	log.Printf(" [*] Waiting for messages...")
+	<-forever
+}
+
+func createOrder(products []Product) {
+	ctx, cancel := NewMongoContext()
+	defer cancel()
+
+	total := 0
+	for i := 0; i < len(products); i++ {
+		total += int(products[i].Price)
+	}
+	order := Order{
+		Product: products,
+		Total:   total,
+	}
+
+	collection := NewMongoDatabase().Collection("order")
+
+	// Save order
+	_, err := collection.InsertOne(ctx, order)
+	FailOnError(err, "Failed insert data!")
+
+	log.Println("Insert order success!")
 }

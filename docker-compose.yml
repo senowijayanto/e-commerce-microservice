@@ -26,6 +26,18 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: secret
     volumes:
       - ./product-service/data:/data/db
+  # MongoDB for Product Service
+  mongodb_order:
+    image: mongo:4.4
+    container_name: mongodb_order
+    restart: unless-stopped
+    ports:
+      - 27010:27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: secret
+    volumes:
+      - ./order-service/data:/data/db
   # RabbitMQ #
   rabbitmq:
     image: rabbitmq:3-management-alpine
