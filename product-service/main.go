@@ -56,7 +56,7 @@ func Buy(response http.ResponseWriter, request *http.Request) {
 	config.FailOnError(err, "Failed get products!")
 
 	payload, err := json.Marshal(products)
-	config.FailOnError(err, "Failed to connect to convert JSON")
+	config.FailOnError(err, "Failed to convert JSON")
 
 	// Publish Queue
 	conn.PublishQueue(payload, "ORDER")
