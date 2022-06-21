@@ -1,31 +1,29 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
-	"reflect"
-	"time"
+
+	"product-service/config"
 
 	"github.com/gorilla/mux"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type Product struct {
-	Id          interface{} `json:"id" bson:"id"`
-	Name        string      `json:"name" bson:"name"`
-	Description string      `json:"description" bson:"description"`
-	Price       int32       `json:"price" bson:"price"`
+	Id          primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
+	Name        string             `json:"name,omitempty" bson:"name,omitempty"`
+	Description string             `json:"description,omitempty" bson:"description,omitempty"`
+	Price       int32              `json:"price,omitempty" bson:"price,omitempty"`
 }
 
-type ProductResponse struct {
-	Id          interface{} `json:"id" bson:"id"`
-	Name        string      `json:"name" bson:"name"`
-	Description string      `json:"description" bson:"description"`
-	Price       int32       `json:"price" bson:"price"`
+type ProductPayload struct {
+	Id          string `json:"_id,omitempty" bson:"_id,omitempty"`
+	Name        string `json:"name,omitempty" bson:"name,omitempty"`
+	Description string `json:"description,omitempty" bson:"description,omitempty"`
+	Price       int32  `json:"price,omitempty" bson:"price,omitempty"`
 }
 
 var (
@@ -37,43 +35,8 @@ var (
 	MONGO_MAX_IDLE_TIME_SECOND = 60
 )
 
-func failOnError(err error, msg string) {
-	if err != nil {
-		log.Fatalf("%s: %s", msg, err)
-		panic(fmt.Sprintf("%s: %s", msg, err))
-	}
-}
-
-func NewMongoContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), 10*time.Second)
-}
-
-func NewMongoDatabase() *mongo.Database {
-	ctx, cancel := NewMongoContext()
-	defer cancel()
-
-	option := options.Client().
-		ApplyURI(MONGO_URI).
-		SetMinPoolSize(uint64(MONGO_POOL_MIN)).
-		SetMaxPoolSize(uint64(MONGO_POOL_MAX)).
-		SetMaxConnIdleTime(time.Duration(MONGO_MAX_IDLE_TIME_SECOND) * time.Second)
-
-	client, err := mongo.NewClient(option)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	err = client.Connect(ctx)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	database := client.Database(MONGO_DATABASE)
-	return database
-}
-
 func Create(response http.ResponseWriter, request *http.Request) {
-	ctx, cancel := NewMongoContext()
+	ctx, cancel := config.NewMongoContext()
 	defer cancel()
 
 	response.Header().Set("Content-Type", "application/json")
@@ -81,90 +44,43 @@ func Create(response http.ResponseWriter, request *http.Request) {
 	var product Product
 	json.NewDecoder(request.Body).Decode(&product)
 
-	collection := NewMongoDatabase().Collection("product")
+	collection := config.NewMongoDatabase().Collection("product")
 
 	// Save product
-	res, err := collection.InsertOne(ctx, product)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	result := ProductResponse{
-		Id:          res.InsertedID,
-		Name:        product.Name,
-		Description: product.Description,
-		Price:       product.Price,
-	}
+	result, err := collection.InsertOne(ctx, product)
+	config.FailOnError(err, "Failed to insert data!")
 
 	json.NewEncoder(response).Encode(result)
 }
 
 func Buy(response http.ResponseWriter, request *http.Request) {
-	// ctx, cancel := NewMongoContext()
-	// defer cancel()
+	ctx, cancel := config.NewMongoContext()
+	defer cancel()
 
 	// Get product from body request
 	var product Product
-	// var dbProduct Product
-	json.NewDecoder(request.Body).Decode(&product)
+	var dbProduct Product
+	_ = json.NewDecoder(request.Body).Decode(&product)
 
-	// Setup connection RabbitMQ
-	// conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
-	// failOnError(err, "Failed to connect to RabbitMQ")
-
-	fmt.Println(reflect.ValueOf(product.Id).Len())
 	// Find product by id
-	// collection := NewMongoDatabase().Collection("product")
-	// // err := collection.Find(ctx, bson.M{"_id": bson.M{"$in": product.Id}}).All(&dbProduct)
-	// cursor, err := collection.Find(context.TODO(), bson.M{"_id": bson.M{"$in": product.Id}})
-	// failOnError(err, "Product Not Found!")
+	collection := config.NewMongoDatabase().Collection("product")
+	collection.FindOne(ctx, bson.M{"_id": product.Id}).Decode(&dbProduct)
 
-	// err = cursor.All(context.TODO(), &dbProduct)
-	// failOnError(err, "Failed!")
+	bodyProduct := ProductPayload{
+		Id:          primitive.ObjectID(dbProduct.Id).Hex(),
+		Name:        dbProduct.Name,
+		Description: dbProduct.Description,
+		Price:       dbProduct.Price,
+	}
+	payload, err := json.Marshal(bodyProduct)
+	config.FailOnError(err, "Failed to connect to convert JSON")
 
-	// fmt.Println(dbProduct)
-	// // Create Channel
-	// ch, err := conn.Channel()
-	// failOnError(err, "Failed to connect to RabbitMQ")
-	// defer ch.Close()
+	// Publish Queue
+	config.PublishQueue(payload, "ORDER")
 
-	// q, err := ch.QueueDeclare(
-	// 	"ORDER", // name
-	// 	false,   // durable
-	// 	false,   // delete when unused
-	// 	false,   // exclusive
-	// 	false,   // no-wait
-	// 	nil,     // arguments
-	// )
-	// log.Println(q)
+	// return to json
+	config.ConsumeQueue("PRODUCT")
 
-	// failOnError(err, "Failed to connect to RabbitMQ")
-
-	// dataProduct := &Product{
-	// 	Id:          dbProduct.Id,
-	// 	Name:        dbProduct.Name,
-	// 	Description: dbProduct.Description,
-	// 	Price:       dbProduct.Price,
-	// }
-
-	// body, err := json.Marshal(dataProduct)
-	// failOnError(err, "Failed convert product!")
-
-	// err = ch.Publish(
-	// 	"",
-	// 	"ORDER",
-	// 	false,
-	// 	false,
-	// 	amqp.Publishing{
-	// 		ContentType: "application/json",
-	// 		Body:        []byte(body),
-	// 	},
-	// )
-
-	// if err != nil {
-	// 	log.Println(err)
-	// }
-	// log.Println("Successfully Published Message to Queue")
 }
 
 func main() {
