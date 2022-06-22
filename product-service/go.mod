@@ -3,6 +3,8 @@ module product-service
 go 1.18
 
 require (
+	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/gorilla/context v1.1.1
 	github.com/gorilla/mux v1.8.0
 	github.com/streadway/amqp v1.0.0
 	go.mongodb.org/mongo-driver v1.9.1

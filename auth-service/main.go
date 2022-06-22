@@ -37,6 +37,12 @@ type UserResponse struct {
 	Email string      `json:"email" bson:"email"`
 }
 
+type MyClaims struct {
+	jwt.StandardClaims
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
 func GetHash(password []byte) string {
 	hash, err := bcrypt.GenerateFromPassword(password, bcrypt.MinCost)
 	if err != nil {
@@ -152,11 +158,15 @@ func Login(response http.ResponseWriter, request *http.Request) {
 	}
 
 	// Generate Token
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"name":  dbUser.Name,
-		"email": dbUser.Email,
-		"nbf":   time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
-	})
+	claims := MyClaims{
+		StandardClaims: jwt.StandardClaims{
+			Issuer:    "Auth Service",
+			ExpiresAt: time.Now().Add(time.Duration(5) * time.Minute).Unix(),
+		},
+		Name:  dbUser.Name,
+		Email: dbUser.Email,
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
 	tokenString, err := token.SignedString(SECRET_KEY)
 

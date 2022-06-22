@@ -18,6 +18,12 @@ type Product struct {
 type Order struct {
 	Product []Product
 	Total   int
+	Email   string
+}
+
+type Payload struct {
+	Products []Product
+	Email    string
 }
 
 type Conn struct {
@@ -59,13 +65,13 @@ func (conn Conn) ConsumeQueue(queueName string) {
 	FailOnError(err, "Failed to register a consumer")
 
 	forever := make(chan bool)
-	var products []Product
+	var payload Payload
 
 	go func() {
 		for d := range msgs {
-			err := json.Unmarshal(d.Body, &products)
+			err := json.Unmarshal(d.Body, &payload)
 			FailOnError(err, "Error Unmarshal")
-			createOrder(products)
+			createOrder(payload)
 		}
 	}()
 
@@ -73,17 +79,18 @@ func (conn Conn) ConsumeQueue(queueName string) {
 	<-forever
 }
 
-func createOrder(products []Product) {
+func createOrder(payload Payload) {
 	ctx, cancel := NewMongoContext()
 	defer cancel()
 
 	total := 0
-	for i := 0; i < len(products); i++ {
-		total += int(products[i].Price)
+	for i := 0; i < len(payload.Products); i++ {
+		total += int(payload.Products[i].Price)
 	}
 	order := Order{
-		Product: products,
+		Product: payload.Products,
 		Total:   total,
+		Email:   payload.Email,
 	}
 
 	collection := NewMongoDatabase().Collection("order")
