@@ -1,27 +1,22 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 	"time"
 
+	"auth-service/config"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 )
 
 var (
-	SECRET_KEY                 = []byte("secretkey")
-	MONGO_URI                  = "mongodb://admin:secret@localhost:27018"
-	MONGO_DATABASE             = "authDB"
-	MONGO_POOL_MIN             = 10
-	MONGO_POOL_MAX             = 100
-	MONGO_MAX_IDLE_TIME_SECOND = 60
+	SECRET_KEY = []byte("secretkey")
 )
 
 type User struct {
@@ -32,9 +27,9 @@ type User struct {
 }
 
 type UserResponse struct {
-	Id    interface{} `json:"id" bson:"id"`
-	Name  string      `json:"name" bson:"name"`
-	Email string      `json:"email" bson:"email"`
+	Id    primitive.ObjectID `json:"id" bson:"id"`
+	Name  string             `json:"name" bson:"name"`
+	Email string             `json:"email" bson:"email"`
 }
 
 type MyClaims struct {
@@ -51,36 +46,27 @@ func GetHash(password []byte) string {
 	return string(hash)
 }
 
-func NewMongoContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), 10*time.Second)
+type UserToken struct {
+	Email string `json:"email"`
+	Token string `json:"token"`
 }
 
-func NewMongoDatabase() *mongo.Database {
-	ctx, cancel := NewMongoContext()
-	defer cancel()
+type ResponseStatus struct {
+	Status  bool `json:"status"`
+	Code    int  `json:"code"`
+	Data    UserResponse
+	Message string `json:"message"`
+}
 
-	option := options.Client().
-		ApplyURI(MONGO_URI).
-		SetMinPoolSize(uint64(MONGO_POOL_MIN)).
-		SetMaxPoolSize(uint64(MONGO_POOL_MAX)).
-		SetMaxConnIdleTime(time.Duration(MONGO_MAX_IDLE_TIME_SECOND) * time.Second)
-
-	client, err := mongo.NewClient(option)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	err = client.Connect(ctx)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	database := client.Database(MONGO_DATABASE)
-	return database
+type TokenResponse struct {
+	Status  bool `json:"status"`
+	Code    int  `json:"code"`
+	Data    UserToken
+	Message string `json:"message"`
 }
 
 func Register(response http.ResponseWriter, request *http.Request) {
-	ctx, cancel := NewMongoContext()
+	ctx, cancel := config.NewMongoContext()
 	defer cancel()
 
 	response.Header().Set("Content-Type", "application/json")
@@ -91,7 +77,7 @@ func Register(response http.ResponseWriter, request *http.Request) {
 
 	user.Password = GetHash([]byte(user.Password))
 
-	collection := NewMongoDatabase().Collection("user")
+	collection := config.NewMongoDatabase().Collection("user")
 
 	// Check existing user by an email
 	collection.FindOne(ctx, bson.M{"email": user.Email}).Decode(&dbUser)
@@ -109,18 +95,24 @@ func Register(response http.ResponseWriter, request *http.Request) {
 	if err != nil {
 		log.Panic(err)
 	}
+	oid := res.InsertedID.(primitive.ObjectID)
 
-	result := UserResponse{
-		Id:    res.InsertedID,
-		Name:  user.Name,
-		Email: user.Email,
+	result := ResponseStatus{
+		Status: true,
+		Code:   http.StatusOK,
+		Data: UserResponse{
+			Id:    oid,
+			Name:  user.Name,
+			Email: user.Email,
+		},
+		Message: "Your Request Has Been Processed",
 	}
 
 	json.NewEncoder(response).Encode(result)
 }
 
 func Login(response http.ResponseWriter, request *http.Request) {
-	ctx, cancel := NewMongoContext()
+	ctx, cancel := config.NewMongoContext()
 	defer cancel()
 
 	response.Header().Set("Content-Type", "application/json")
@@ -129,7 +121,7 @@ func Login(response http.ResponseWriter, request *http.Request) {
 	var dbUser User
 	json.NewDecoder(request.Body).Decode(&user)
 
-	collection := NewMongoDatabase().Collection("user")
+	collection := config.NewMongoDatabase().Collection("user")
 
 	// Check existing user by an email
 	err := collection.FindOne(ctx, bson.M{"email": user.Email}).Decode(&dbUser)
@@ -179,9 +171,14 @@ func Login(response http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	result := map[string]string{
-		"message": "Login Success!",
-		"token":   tokenString,
+	result := TokenResponse{
+		Status: true,
+		Code:   http.StatusOK,
+		Data: UserToken{
+			Email: user.Email,
+			Token: tokenString,
+		},
+		Message: "Your Request Has Been Processed",
 	}
 
 	json.NewEncoder(response).Encode(result)
