@@ -181,5 +181,5 @@ func main() {
 	router.HandleFunc("/product/create", validateMiddleware(Create)).Methods("POST")
 	router.HandleFunc("/product/buy", validateMiddleware(Buy)).Methods("POST")
 
-	log.Fatal(http.ListenAndServe("localhost:8082", router))
+	log.Fatal(http.ListenAndServe(":8080", router))
 }

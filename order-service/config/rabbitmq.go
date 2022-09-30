@@ -31,7 +31,7 @@ type Conn struct {
 }
 
 func GetConn() (Conn, error) {
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq/")
 	FailOnError(err, "Failed to connect to RabbitMQ")
 
 	ch, err := conn.Channel()

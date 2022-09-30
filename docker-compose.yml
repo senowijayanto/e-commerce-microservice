@@ -1,6 +1,40 @@
 version: '3'
 
 services:
+
+  # Auth Service
+  auth_service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth_service
+    ports:
+      - "8081:8080"
+    depends_on:
+      - mongodb_auth
+
+  # Product Service
+  product_service:
+    build:
+      context: ./product-service
+      dockerfile: Dockerfile
+    container_name: product_service
+    ports:
+      - "8082:8080"
+    depends_on:
+      - mongodb_product
+
+  # Order Service
+  order_service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    container_name: order_service
+    ports:
+      - "8083:8080"
+    depends_on:
+      - mongodb_order
+
   # MongoDB for Auth Service
   mongodb_auth:
     image: mongo:4.4
@@ -26,7 +60,8 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: secret
     volumes:
       - ./product-service/data:/data/db
-  # MongoDB for Product Service
+
+  # MongoDB for Order Service
   mongodb_order:
     image: mongo:4.4
     container_name: mongodb_order

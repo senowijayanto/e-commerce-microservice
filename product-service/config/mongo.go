@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	MONGO_URI                  = "mongodb://admin:secret@localhost:27019"
+	MONGO_URI                  = "mongodb://admin:secret@mongodb_product"
 	MONGO_DATABASE             = "productDB"
 	MONGO_POOL_MIN             = 10
 	MONGO_POOL_MAX             = 100
