@@ -192,5 +192,5 @@ func main() {
 	router.HandleFunc("/auth/register", Register).Methods("POST")
 	router.HandleFunc("/auth/login", Login).Methods("POST")
 
-	log.Fatal(http.ListenAndServe("localhost:8081", router))
+	log.Fatal(http.ListenAndServe(":8080", router))
 }
